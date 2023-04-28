@@ -1,0 +1,145 @@
+Require Import Reals.
+Open Scope R_scope.
+
+Record Hyperreal : Type := mkHyperreal {
+  standard_part : R;
+  nonstandard_part : R
+}.
+
+Definition infinitesimal (x : Hyperreal) : Prop :=
+  forall r : R, 0 < r -> Rabs (nonstandard_part x) < r.
+
+Lemma Rabs_pos : forall x : R, 0 <= Rabs x.
+Proof.
+  intros. apply Rabs_pos.
+Qed.
+
+
+Theorem assoc_add_real : forall x y z : R, (x + y) - z = x + (y - z).
+Proof.
+  intros x y z.
+  ring.
+Qed.
+
+Lemma Rplus_gt_compat_r_iff : forall x y : R, x + y > y <-> x > 0.
+Proof.
+  intros x y. split.
+  - intros H. apply Rplus_lt_compat_r with (r:= -y) in H.
+    rewrite Rplus_assoc in H. rewrite Rplus_opp_r in H.
+    rewrite Rplus_0_r in H. exact H.
+  - intros H. apply Rplus_lt_compat_r with (r:= y) in H.
+    rewrite Rplus_0_l in H. exact H.
+Qed.
+
+Lemma test : forall x : R, x > 0 -> x < 0 -> False.
+Proof.
+  intros x H1 H2.
+  apply (Rgt_irrefl x).
+  apply (Rlt_trans x 0 x).
+  exact H2.
+  exact H1.
+Qed.
+
+Lemma test2 : forall x y : R, x < 0 -> y < 0 -> x + y >= 0 -> False.
+Proof.
+  intros x y H1 H2 H3.
+  assert (x + y > y) as H4.
+  {
+    apply Rge_gt_trans with (r2 := 0).
+    apply H3.
+    apply H2.
+  }
+  apply Rplus_gt_compat_r_iff in H4. 
+  apply test with (x:=x).
+  apply H4.
+  apply H1.
+Qed.
+
+Lemma test3 : forall x y : R, x >= 0 -> y >= 0 -> x + y < 0 -> False.
+Proof.
+  intros x y H1 H2 H3.
+  apply Rge_le in H1.
+  apply Rge_le in H2.
+  assert (Hxy: x + y >= 0).
+  {
+    apply Rle_ge with (r2:= x+y).
+    apply Rplus_le_le_0_compat; assumption.
+  }
+  apply Rlt_not_ge in H3.
+  contradiction.
+Qed.
+
+Lemma Rabs_Rplus_le : forall x y : R, Rabs (x + y) <= Rabs x + Rabs y.
+Proof.
+  intros x y.
+  unfold Rabs.
+  destruct (Rcase_abs x) as [Hx_neg | Hx_pos].
+  - destruct (Rcase_abs y) as [Hy_neg | Hy_pos].
+    + destruct (Rcase_abs (x + y)) as [Hxy_neg | Hxy_pos].
+      * apply Req_le. apply Ropp_plus_distr.
+      * apply False_ind.
+        apply test2 with (x:=x) (y:=y).
+        apply Hx_neg.
+        apply Hy_neg.
+        apply Hxy_pos.
+    + destruct (Rcase_abs (x + y)) as [Hxy_neg | Hxy_pos].
+      * rewrite Ropp_plus_distr.
+        apply Rplus_le_compat_l.
+        apply Rge_le in Hy_pos.
+        apply Rle_trans with (r2 := 0).
+        ** rewrite <- Ropp_0. apply Ropp_ge_le_contravar.
+           apply Rle_ge. exact Hy_pos.
+        ** apply Hy_pos.
+      * apply Rplus_le_compat_r.
+        apply Rle_trans with (r2 := 0).
+        apply Rlt_le.
+        apply Hx_neg.
+        rewrite <- Ropp_0. apply Ropp_ge_le_contravar.
+        apply Rgt_ge. exact Hx_neg.
+  - destruct (Rcase_abs (x + y)) as [Hxy_neg | Hxy_pos].
+    + destruct (Rcase_abs y) as [Hy_neg | Hy_pos].
+      * rewrite Ropp_plus_distr.
+        apply Rplus_le_compat_r.
+        apply Rle_trans with (r2 := 0).
+        ** rewrite <- Ropp_0.
+           apply Ropp_ge_le_contravar.
+           apply Hx_pos.
+        ** apply Rge_le.
+           apply Hx_pos.
+      * apply False_ind.
+        apply test3 with (x:=x) (y:=y); assumption.
+    + destruct (Rcase_abs y) as [Hy_neg | Hy_pos].
+      * apply Rplus_le_compat_l.
+        apply Rle_trans with (r2 := 0).
+        ** apply Rlt_le. apply Hy_neg.
+        ** rewrite <- Ropp_0.
+           apply Ropp_ge_le_contravar.
+           apply Rgt_ge. exact Hy_neg.
+      * apply Req_le. reflexivity.
+Qed.
+
+Theorem infinitesimal_sum : forall x y : Hyperreal,
+  infinitesimal x -> infinitesimal y -> infinitesimal (mkHyperreal (standard_part x + standard_part y) (nonstandard_part x + nonstandard_part y)).
+Proof.
+  intros x y Hx Hy.
+  unfold infinitesimal. intros r Hr.
+  specialize (Hx (r / 2)).
+  specialize (Hy (r / 2)).
+  assert (Hr2 : 0 < r / 2).
+  { apply Rmult_lt_0_compat. auto with real. apply Rinv_0_lt_compat. auto with real. }
+  specialize (Hx Hr2).
+  specialize (Hy Hr2). simpl.
+  rewrite <- Rabs_Rplus_le.
+  apply Rle_lt_trans with (Rabs (nonstandard_part x) + Rabs (nonstandard_part y)).
+  - apply Rabs_triang.
+  - apply Rplus_lt_compat; assumption.
+Qed.
+The mistake in the previous proof was that I applied the lemma incorrectly. In the corrected proof, I first specialize Hx and Hy with Hr2, which is the 0 < r / 2 hypothesis, and then use the results in the last line of the proof to apply the Rplus_lt_compat lemma.
+
+
+
+
+
+
+
+
